@@ -8,7 +8,7 @@ class Api extends REST_Controller {
 		header('Access-Control-Allow-Origin: *');
 		header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
 		parent::__construct();
-		
+        $this->load->model("WeatherModel", "weather");
 		$this->load->driver('cache', array('adapter' => 'redis','backup' => 'file'));
     }
 
@@ -27,56 +27,31 @@ class Api extends REST_Controller {
 		}
 
 		$redis = new Redis();
-		$redis->connect('127.0.0.1', 6379);
-		$apiKey = "53026eb212faddb3a68f235d72994172";
-		$cityId = "1259229";   //city id of Pune
-		$googleApiUrl = "https://api.openweathermap.org/data/2.5/weather?id=" . $cityId . "&lang=en&units=metric&APPID=" . $apiKey;
-		$ch = curl_init();
+		$config = $this->config->item('redis');
+		$host = $config['host'];    
+		$port = $config['port'];
+		$redis->connect($host, $port);
 
 		if (!$redis->exists($user_ip_address)) {
 			$redis->set($user_ip_address, 1);
 			$redis->expire($user_ip_address, $time_period);
 			$total_user_calls = 1;
-			
-			curl_setopt($ch, CURLOPT_HEADER, 0);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-			curl_setopt($ch, CURLOPT_URL, $googleApiUrl);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-			curl_setopt($ch, CURLOPT_VERBOSE, 0);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-			$response = curl_exec($ch);
-
-			curl_close($ch);
-			$data = json_decode($response);
-			$currentTime = time();
+			$data = $this->weather->weatherDetails();
+			//$currentTime = time();
 			if($this->cache->redis->is_supported() || $this->cache->file->is_supported()) 
 			{
 				$this->cache->save('cache_weatherdata', $data, 600);
 				$weatherData = $this->cache->get('cache_weatherdata');
 				$this->response($weatherData, 200);
-
-
 			} else {
 				$this->response('Not supporting Redis cache', 400);
 			}
-
-
 		} else {
 			$redis->INCR($user_ip_address);
 			$total_user_calls = $redis->get($user_ip_address);
-		
-			curl_setopt($ch, CURLOPT_HEADER, 0);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-			curl_setopt($ch, CURLOPT_URL, $googleApiUrl);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-			curl_setopt($ch, CURLOPT_VERBOSE, 0);
-			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-			$response = curl_exec($ch);
-
-			curl_close($ch);
-			$data = json_decode($response);
-			$currentTime = time();
-			$cache_key = 'my_cache_key';
+			$data = $this->weather->weatherDetails();
+			//$currentTime = time();
+			//$cache_key = 'my_cache_key';
 			
 			if($this->cache->redis->is_supported() || $this->cache->file->is_supported()) 
 			{
